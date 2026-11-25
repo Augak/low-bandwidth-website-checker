@@ -1,6 +1,6 @@
 # Low-Bandwidth Website Checker
 
-A TypeScript command-line tool for checking HTML size, image alt attributes, image sizes and links.
+Clearpage is a local visual interface and TypeScript command-line tool for checking HTML size, image alt attributes, image sizes and links.
 
 ## Getting started
 
@@ -8,6 +8,14 @@ Requires Node.js 20.18.1 or newer and npm.
 
 ```sh
 npm install
+npm run web
+```
+
+Open http://127.0.0.1:4173 and enter the website URL. The server is bound to the local machine only. Set PORT to use another local port.
+
+For the command-line version and tests:
+
+```sh
 npm run check -- https://example.com
 npm test
 npm run typecheck
@@ -24,4 +32,4 @@ HEAD requests fall back to a range GET when HEAD is not supported. The tool uses
 
 ## Responsible use
 
-Only check URLs you trust and are authorized to access. The tool requests linked resources and follows redirects. Do not expose it as a public service without SSRF protection, resource limits and other security controls.
+Only check URLs you trust and are authorized to access. The tool requests linked resources and follows redirects, including links to internal networks. The interface runs locally and checks request origins, but it is not designed for public hosting. Do not expose it as a public service without robust SSRF protection, resource limits and other security controls.
