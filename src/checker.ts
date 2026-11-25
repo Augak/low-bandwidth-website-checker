@@ -25,11 +25,50 @@ async function mapLimited(urls: string[]): Promise<Resource[]> {
   await Promise.all(Array.from({ length: Math.min(4, urls.length) }, async () => { while (next < urls.length) { const i = next++; results[i] = await inspect(urls[i]); } }));
   return results;
 }
+// Fetch exposes decompressed bytes. Limit those bytes rather than trusting Content-Length,
+// which may be absent, incorrect, or describe a compressed response.
+const MAX_HTML_BYTES = 2 * 1024 * 1024;
+async function readHtml(res: Response): Promise<string> {
+  if (!res.body) throw new Error("Page returned an empty HTML body");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const parts: string[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_HTML_BYTES) throw new Error(`HTML exceeds the ${MAX_HTML_BYTES}-byte limit`);
+      parts.push(decoder.decode(value, { stream: true }));
+    }
+    if (!bytes) throw new Error("Page returned an empty HTML body");
+    parts.push(decoder.decode());
+    return parts.join("");
+  } catch (err) {
+    // Do not leave an unwanted response streaming in the background.
+    await reader.cancel().catch(() => {});
+    throw err;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function checkPage(input: string): Promise<Report> {
   const url = resolveUrl(input, input); if (!url) throw new Error("Provide a valid HTTP(S) URL without credentials.");
-  const res = await request(url); if (!res.ok) throw new Error(`Page returned HTTP ${res.status}`);
-  const type = res.headers.get("content-type") ?? ""; if (type && !/text\/html|application\/xhtml\+xml/i.test(type)) throw new Error(`Expected HTML, got ${type}`);
-  const html = await res.text(); const $ = cheerio.load(html);
+  const res = await request(url);
+  if (!res.ok || res.status === 206) {
+    await res.body?.cancel().catch(() => {});
+    if (res.status === 206) throw new Error("Page returned partial HTML (HTTP 206)");
+    throw new Error(`Page returned HTTP ${res.status}`);
+  }
+  const type = res.headers.get("content-type") ?? "";
+  const mediaType = type.split(";", 1)[0].trim().toLowerCase();
+  if (type && mediaType !== "text/html" && mediaType !== "application/xhtml+xml") {
+    await res.body?.cancel().catch(() => {});
+    throw new Error(`Expected HTML, got ${type}`);
+  }
+  const html = await readHtml(res); const $ = cheerio.load(html);
   const baseAttr = $("base[href]").first().attr("href"); const base = baseAttr ? (resolveUrl(baseAttr, res.url) ?? res.url) : res.url;
   const missingAlt: string[] = []; const imageUrls: string[] = []; const linkUrls: string[] = [];
   $("img").each((i, el) => { const image = $(el); const src = image.attr("src") ?? ""; if (image.attr("alt") === undefined) missingAlt.push(`Image ${i + 1}: ${src || "(no src)"}`); const u = src && resolveUrl(src, base); if (u) imageUrls.push(u); });
