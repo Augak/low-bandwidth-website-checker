@@ -1,10 +1,10 @@
 {
   "name": "low-bandwidth-website-checker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20.18.1" },
-  "scripts": { "check": "tsx src/cli.ts", "test": "tsx --test tests/*.test.ts", "typecheck": "tsc --noEmit" },
+  "scripts": { "check": "tsx src/cli.ts", "web": "tsx src/web.ts", "test": "tsx --test tests/*.test.ts", "typecheck": "tsc --noEmit" },
   "dependencies": { "cheerio": "1.0.0" },
   "devDependencies": { "@types/node": "^22.0.0", "tsx": "^4.19.0", "typescript": "^5.7.0" }
 }
